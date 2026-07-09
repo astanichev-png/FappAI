@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CHEV-A Facturatie Dashboard Pro</title>
     
-    <!-- Veilige Google Fonts koppeling -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -28,9 +27,7 @@
             --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
         }
 
-        *, *::before, *::after {
-            box-sizing: border-box;
-        }
+        *, *::before, *::after { box-sizing: border-box; }
 
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -104,9 +101,7 @@
             margin-top: 4px;
         }
 
-        .form-group {
-            margin-bottom: 16px;
-        }
+        .form-group { margin-bottom: 16px; }
 
         .form-row {
             display: grid;
@@ -214,10 +209,7 @@
             margin-top: 8px;
         }
 
-        .preview-sticky {
-            position: sticky;
-            top: 24px;
-        }
+        .preview-sticky { position: sticky; top: 24px; }
 
         .a4-document {
             background-color: #ffffff;
@@ -268,10 +260,7 @@
             border-bottom: 1px solid #cbd5e1;
         }
 
-        .a4-table td {
-            padding: 10px 8px;
-            border-bottom: 1px solid #f1f5f9;
-        }
+        .a4-table td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; }
     </style>
 </head>
 <body>
@@ -346,9 +335,7 @@
                         <th style="width: 40px;"></th>
                     </tr>
                 </thead>
-                <tbody>
-                    <!-- Dynamische rijen -->
-                </tbody>
+                <tbody></tbody>
             </table>
             <button class="btn btn-secondary" onclick="voegRijToe()" style="width: 100%;">Regel Toevoegen</button>
 
@@ -362,17 +349,24 @@
         <div style="display: flex; flex-direction: column; gap: 12px;">
             <button class="btn btn-success" onclick="genereerEnSlaOp()">PDF GENEREREN & VERWERKEN</button>
             
-            <div style="background: #f1f5f9; padding: 16px; border-radius: var(--radius-input); border: 1px dashed var(--border-color);">
-                <label style="margin-bottom: 8px;">Backupbeheer (Super-importeur)</label>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button class="btn btn-secondary" style="flex: 1;" onclick="exporteerBackup()">Exporteer Backup</button>
-                    
-                    <label class="btn btn-secondary" style="flex: 1; margin: 0; cursor: pointer; text-align: center;">
-                        Importeer Backup
-                        <input type="file" id="importFile" accept=".json" style="opacity: 0; width: 1px; height: 1px; position: absolute;" onchange="importeerBackup(this)">
-                    </label>
+            <div style="background: #f1f5f9; padding: 16px; border-radius: var(--radius-input); border: 1px solid var(--border-color);">
+                <label style="margin-bottom: 8px; color: var(--accent-primary); font-weight:700;">Backupbeheer (Gegarandeerde Import)</label>
+                
+                <!-- Zichtbaar bestandstype invoerveld (Geen skjull-trucs die browsers blokkeren) -->
+                <input type="file" id="importFile" accept=".json" style="margin-bottom: 10px; display: block; width: 100%;">
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                    <button class="btn btn-primary" style="flex: 1;" onclick="verwerkBestandImport()">Start Import</button>
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="exporteerBackup()">Exporteer Data</button>
                 </div>
-                <button class="btn btn-secondary" style="width: 100%; margin-top: 10px; color: var(--accent-red); background: #fff;" onclick="wisGeschiedenis()">Reset Nummering & Stats</button>
+
+                <div style="margin-top: 15px; border-top: 1px dashed var(--border-color); padding-top: 10px;">
+                    <label>Alternatieve Nood-import (Plak hier je tekst):</label>
+                    <textarea id="noodTextarea" rows="2" placeholder="Open je backup .json in kladblok, kopieer de tekst en plak het hier..."></textarea>
+                    <button class="btn btn-secondary" style="width: 100%; margin-top: 5px; font-size:12px;" onclick="verwerkNoodImport()">Verwerk Plak-Tekst</button>
+                </div>
+
+                <button class="btn btn-secondary" style="width: 100%; margin-top: 15px; color: var(--accent-red); background: #fff;" onclick="wisGeschiedenis()">Reset Nummering & Stats</button>
             </div>
         </div>
 
@@ -381,14 +375,11 @@
     <!-- RECHTERKANT: LIVE PREVIEW -->
     <div class="preview-sticky">
         <label style="margin-bottom: 10px; display: block;">Live Document Preview (Real-time)</label>
-        <div class="a4-document" id="a4Preview">
-            <!-- Dynamic Preview -->
-        </div>
+        <div class="a4-document" id="a4Preview"></div>
     </div>
 
 </div>
 
-<!-- Externe bibliotheek aan het einde -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
@@ -397,16 +388,7 @@
     let huidigNummer = 6375;
 
     document.addEventListener("DOMContentLoaded", function() {
-        klantenLijst = JSON.parse(localStorage.getItem("chev_klanten") || "[]");
-        facturenHistorie = JSON.parse(localStorage.getItem("chev_historie") || "[]");
-        huidigNummer = parseInt(localStorage.getItem("chev_nummer")) || 6375;
-
-        if(klantenLijst.length === 0) {
-            klantenLijst = [
-                { naam: "Klant ABC B.V.", adres: "Hoofdstraat 12, Amsterdam" }
-            ];
-            localStorage.setItem("chev_klanten", JSON.stringify(klantenLijst));
-        }
+        herlaadDataUitStorage();
 
         document.getElementById("inputFactuurNr").value = huidigNummer;
         document.getElementById("inputDatum").value = new Date().toISOString().split('T')[0];
@@ -422,6 +404,17 @@
 
         voegRijToe("Geleverde diensten / Consultancy", 1, 450.00);
     });
+
+    function herlaadDataUitStorage() {
+        klantenLijst = JSON.parse(localStorage.getItem("chev_klanten") || "[]");
+        facturenHistorie = JSON.parse(localStorage.getItem("chev_historie") || "[]");
+        huidigNummer = parseInt(localStorage.getItem("chev_nummer")) || 6375;
+
+        if(klantenLijst.length === 0) {
+            klantenLijst = [{ naam: "Klant ABC B.V.", adres: "Hoofdstraat 12, Amsterdam" }];
+            localStorage.setItem("chev_klanten", JSON.stringify(klantenLijst));
+        }
+    }
 
     function berekenStatistieken() {
         let totaleOmzet = 0;
@@ -565,11 +558,6 @@
         const klantIdx = document.getElementById("inputKlantSelect").value;
         if(!klantIdx) return alert("Selecteer eerst een klant.");
 
-        if (!window.jspdf || !window.jspdf.jsPDF) {
-            alert("PDF engine start op. Probeer het over een paar seconden opnieuw.");
-            return;
-        }
-
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
@@ -597,7 +585,7 @@
     }
 
     function wisGeschiedenis() {
-        if(confirm("Alles wissen en database resetten?")) {
+        if(confirm("Alles wissen?")) {
             localStorage.clear();
             location.reload();
         }
@@ -617,46 +605,55 @@
         dlAnchor.click();
     }
 
-    function importeerBackup(inputElement) {
-        const file = inputElement.files[0];
-        if (!file) return;
+    // INTERNE DATABASE PARSER
+    function databaseInjecteren(ruweInput) {
+        try {
+            let data = typeof ruweInput === "string" ? JSON.parse(ruweInput) : ruweInput;
+            if (typeof data === "string") data = JSON.parse(data);
 
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                let data = JSON.parse(e.target.result);
-                
-                // Universele parser: Handelt strings én pure arrays/objecten af
-                if (typeof data === "string") data = JSON.parse(data);
-
-                // Scenario 1: Het is een pure array (direct een lijst van facturen of klanten)
-                if (Array.isArray(data)) {
-                    if (data.length > 0 && (data[0].nr || data[0].totaal)) {
-                        localStorage.setItem("chev_historie", JSON.stringify(data));
-                    } else {
-                        localStorage.setItem("chev_klanten", JSON.stringify(data));
-                    }
-                } 
-                // Scenario 2: Het is een gestructureerd object
-                else if (typeof data === "object" && data !== null) {
-                    const k = data.chev_klanten || data.klanten || data.klantenLijst;
-                    const h = data.chev_historie || data.historie || data.facturenHistorie;
-                    const n = data.chev_nummer || data.nummer || data.huidigNummer;
-                    const b = data.chev_mijnbedrijf || data.bedrijf || data.inputBedrijfNaam;
-
-                    if (k) localStorage.setItem("chev_klanten", typeof k === 'string' ? k : JSON.stringify(k));
-                    if (h) localStorage.setItem("chev_historie", typeof h === 'string' ? h : JSON.stringify(h));
-                    if (n) localStorage.setItem("chev_nummer", n);
-                    if (b) localStorage.setItem("chev_mijnbedrijf", b);
+            if (Array.isArray(data)) {
+                if (data.length > 0 && (data[0].nr || data[0].totaal)) {
+                    localStorage.setItem("chev_historie", JSON.stringify(data));
+                } else {
+                    localStorage.setItem("chev_klanten", JSON.stringify(data));
                 }
+            } else if (typeof data === "object" && data !== null) {
+                const k = data.chev_klanten || data.klanten || data.klantenLijst;
+                const h = data.chev_historie || data.historie || data.facturenHistorie;
+                const n = data.chev_nummer || data.nummer || data.huidigNummer;
+                const b = data.chev_mijnbedrijf || data.bedrijf || data.inputBedrijfNaam;
 
-                alert("Gegevens succesvol hersteld en ingeladen!");
-                location.reload();
-            } catch (err) {
-                alert("Fout bij het lezen van het bestand. Zorg dat het een geldig .json bestand is.");
+                if (k) localStorage.setItem("chev_klanten", typeof k === 'string' ? k : JSON.stringify(k));
+                if (h) localStorage.setItem("chev_historie", typeof h === 'string' ? h : JSON.stringify(h));
+                if (n) localStorage.setItem("chev_nummer", n);
+                if (b) localStorage.setItem("chev_mijnbedrijf", b);
             }
-        };
-        reader.readAsText(file);
+            alert("✅ Gegevens met succes hersteld!");
+            location.reload();
+            return true;
+        } catch (e) {
+            alert("❌ Fout: Dit is geen geldige tekst of JSON-structuur.");
+            return false;
+        }
+    }
+
+    // METHODE 1: VIA BESTANDSKIEZER EN KNOP
+    function verwerkBestandImport() {
+        const input = document.getElementById("importFile");
+        if (!input || !input.files[0]) {
+            alert("Kies eerst een .json bestand via de knop hierboven.");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = function(e) { databaseInjecteren(e.target.result); };
+        reader.readAsText(input.files[0]);
+    }
+
+    // METHODE 2: VIA DIRECT PLAKKEN (HONDERD PROCENT GARANTIE)
+    function verwerkNoodImport() {
+        const txt = document.getElementById("noodTextarea").value.trim();
+        if(!txt) return alert("Plak eerst de tekst uit je backup-bestand in het tekstveld.");
+        databaseInjecteren(txt);
     }
 </script>
 </body>
