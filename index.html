@@ -117,11 +117,9 @@
         .btn-block { width: 100%; margin-top: 10px; }
         .btn-pdf { background-color: var(--success-color); }
         .btn-ubl { background-color: var(--purple-color); }
-        .btn-csv { background-color: #4a4a4a; }
         .btn-backup { background-color: var(--warning-color); }
         .btn-import { background-color: var(--info-color); color: #1c1c1e; text-align: center; display: inline-block; font-weight: 600; cursor: pointer; padding: 10px 20px; border-radius: 8px; }
         .btn-danger { background-color: var(--danger-color); }
-        .btn-reset { background: #eee; color: #000; }
 
         table {
             width: 100%;
@@ -229,11 +227,9 @@
     <div class="flex-group">
         <button type="button" class="btn-pdf" id="btnExportPDF">📄 PDF DOWNLOAD</button>
         <button type="button" class="btn-ubl" id="btnExportUBL">🤖 E-FACTUUR (UBL/XML)</button>
-        <button type="button" class="btn-csv" id="btnExportCSV">📊 Export CSV voor Boekhouding</button>
         <button type="button" class="btn-backup" id="btnExportDB">💾 Backup Downloaden</button>
         <label for="importInput" class="btn-import">📂 Import Database</label>
         <input type="file" id="importInput" accept=".json">
-        <button type="button" class="btn-reset" id="btnResetNr">🔄 Reset nr naar 6375</button>
     </div>
 
     <!-- Statistieken & Live Preview -->
@@ -327,10 +323,8 @@ function setupEventListeners() {
     $("btnKlantToevoegen").addEventListener("click", klantToevoegen);
     $("btnExportPDF").addEventListener("click", exportFactuur);
     $("btnExportUBL").addEventListener("click", exportUBL);
-    $("btnExportCSV").addEventListener("click", exportCSV);
     $("btnExportDB").addEventListener("click", exportDatabase);
     $("importInput").addEventListener("change", importDatabase);
-    $("btnResetNr").addEventListener("click", resetFactuurNr);
 }
 
 function updateAllLists() {
@@ -755,27 +749,6 @@ function importDatabase(event) {
         }
     };
     reader.readAsText(file);
-}
-
-function exportCSV() {
-    let csv = 'Factuurnr;Datum;Klant;Totaal\n';
-    facturen.forEach(f => {
-        csv += `${f.nr};${f.datumNice};"${f.klant.naam}";${f.tot}\n`;
-    });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    link.download = 'CHEV-A_Export.csv';
-    link.click();
-}
-
-function resetFactuurNr() {
-    const nieuwNr = prompt("Nieuw nummer?", "6375");
-    if (nieuwNr) {
-        nummer = parseInt(nieuwNr);
-        $("factuurNr").innerText = nummer;
-        localStorage.setItem("factuurnr", nummer);
-        updatePreview();
-    }
 }
 
 // Uitvoeren zodra DOM geladen is
