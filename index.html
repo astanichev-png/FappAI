@@ -620,30 +620,32 @@
         dlAnchor.setAttribute("download", "CHEV-A_Backup.json");
         dlAnchor.click();
     }
-
-    function importeerBackup(inputElement) {
+function importeerBackup(inputElement) {
         const file = inputElement.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                const geïmporteerdeData = JSON.parse(e.target.result);
-                if (geïmporteerdeData.chev_klanten || geïmporteerdeData.chev_historie) {
-                    if(geïmporteerdeData.chev_klanten) localStorage.setItem("chev_klanten", geïmporteerdeData.chev_klanten);
-                    if(geïmporteerdeData.chev_historie) localStorage.setItem("chev_historie", geïmporteerdeData.chev_historie);
-                    if(geïmporteerdeData.chev_nummer) localStorage.setItem("chev_nummer", geïmporteerdeData.chev_nummer);
-                    if(geïmporteerdeData.chev_mijnbedrijf) localStorage.setItem("chev_mijnbedrijf", geïmporteerdeData.chev_mijnbedrijf);
-                    location.reload();
-                } else {
-                    alert("Geen geldige backup.");
-                }
+                const data = JSON.parse(e.target.result);
+                
+                // Flexibele import: probeer alle bekende formaten te pakken
+                const klanten = data.chev_klanten || data.klanten || data.klantenLijst;
+                const historie = data.chev_historie || data.historie || data.facturenHistorie;
+                const nummer = data.chev_nummer || data.nummer || data.huidigNummer;
+                const bedrijf = data.chev_mijnbedrijf || data.bedrijf || data.inputBedrijfNaam;
+
+                // Sla op wat we kunnen vinden
+                if (klanten) localStorage.setItem("chev_klanten", typeof klanten === 'string' ? klanten : JSON.stringify(klanten));
+                if (historie) localStorage.setItem("chev_historie", typeof historie === 'string' ? historie : JSON.stringify(historie));
+                if (nummer) localStorage.setItem("chev_nummer", nummer);
+                if (bedrijf) localStorage.setItem("chev_mijnbedrijf", bedrijf);
+                
+                alert("Backup succesvol ingeladen!");
+                location.reload();
             } catch (err) {
-                alert("Fout bij inladen.");
+                alert("Fout bij het technisch verwerken van dit bestand.");
             }
         };
         reader.readAsText(file);
     }
-</script>
-</body>
-</html>
