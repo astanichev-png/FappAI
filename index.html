@@ -363,7 +363,7 @@
             <button class="btn btn-success" onclick="genereerEnSlaOp()">PDF GENEREREN & VERWERKEN</button>
             
             <div style="background: #f1f5f9; padding: 16px; border-radius: var(--radius-input); border: 1px dashed var(--border-color);">
-                <label style="margin-bottom: 8px;">Backupbeheer (Opslag)</label>
+                <label style="margin-bottom: 8px;">Backupbeheer (Super-importeur)</label>
                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-secondary" style="flex: 1;" onclick="exporteerBackup()">Exporteer Backup</button>
                     
@@ -388,16 +388,14 @@
 
 </div>
 
-<!-- Externe bibliotheek pas aan het einde inladen om parsing-blokkades te voorkomen -->
+<!-- Externe bibliotheek aan het einde -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
-    // Globale app status
     let klantenLijst = [];
     let facturenHistorie = [];
     let huidigNummer = 6375;
 
-    // Veilige initialisatie zodra de DOM boom volledig klaar is
     document.addEventListener("DOMContentLoaded", function() {
         klantenLijst = JSON.parse(localStorage.getItem("chev_klanten") || "[]");
         facturenHistorie = JSON.parse(localStorage.getItem("chev_historie") || "[]");
@@ -405,8 +403,7 @@
 
         if(klantenLijst.length === 0) {
             klantenLijst = [
-                { naam: "Klant ABC B.V.", adres: "Hoofdstraat 12, Amsterdam" },
-                { naam: "Dienstverlening Jansen", adres: "Stationsplein 4, Utrecht" }
+                { naam: "Klant ABC B.V.", adres: "Hoofdstraat 12, Amsterdam" }
             ];
             localStorage.setItem("chev_klanten", JSON.stringify(klantenLijst));
         }
@@ -418,7 +415,6 @@
         laadKlantenDropdown();
         berekenStatistieken();
         
-        // Luisteraars binden
         ["inputBedrijfNaam", "inputFactuurNr", "inputDatum", "inputTermijn", "inputKlantSelect"].forEach(id => {
             const el = document.getElementById(id);
             if(el) el.addEventListener("input", updateLivePreview);
@@ -436,6 +432,7 @@
 
     function laadKlantenDropdown() {
         const select = document.getElementById("inputKlantSelect");
+        if(!select) return;
         select.innerHTML = '<option value="">-- Kies een klant --</option>';
         klantenLijst.forEach((k, idx) => {
             const opt = document.createElement("option");
@@ -568,9 +565,8 @@
         const klantIdx = document.getElementById("inputKlantSelect").value;
         if(!klantIdx) return alert("Selecteer eerst een klant.");
 
-        // Veilig controleren of jsPDF correct geladen is door de browser script tag
         if (!window.jspdf || !window.jspdf.jsPDF) {
-            alert("De PDF-generator laadt op dit moment. Wacht een paar seconden of controleer uw internetverbinding.");
+            alert("PDF engine start op. Probeer het over een paar seconden opnieuw.");
             return;
         }
 
@@ -601,7 +597,7 @@
     }
 
     function wisGeschiedenis() {
-        if(confirm("Alles wissen?")) {
+        if(confirm("Alles wissen en database resetten?")) {
             localStorage.clear();
             location.reload();
         }
@@ -620,32 +616,48 @@
         dlAnchor.setAttribute("download", "CHEV-A_Backup.json");
         dlAnchor.click();
     }
-function importeerBackup(inputElement) {
+
+    function importeerBackup(inputElement) {
         const file = inputElement.files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = function(e) {
             try {
-                const data = JSON.parse(e.target.result);
+                let data = JSON.parse(e.target.result);
                 
-                // Flexibele import: probeer alle bekende formaten te pakken
-                const klanten = data.chev_klanten || data.klanten || data.klantenLijst;
-                const historie = data.chev_historie || data.historie || data.facturenHistorie;
-                const nummer = data.chev_nummer || data.nummer || data.huidigNummer;
-                const bedrijf = data.chev_mijnbedrijf || data.bedrijf || data.inputBedrijfNaam;
+                // Universele parser: Handelt strings én pure arrays/objecten af
+                if (typeof data === "string") data = JSON.parse(data);
 
-                // Sla op wat we kunnen vinden
-                if (klanten) localStorage.setItem("chev_klanten", typeof klanten === 'string' ? klanten : JSON.stringify(klanten));
-                if (historie) localStorage.setItem("chev_historie", typeof historie === 'string' ? historie : JSON.stringify(historie));
-                if (nummer) localStorage.setItem("chev_nummer", nummer);
-                if (bedrijf) localStorage.setItem("chev_mijnbedrijf", bedrijf);
-                
-                alert("Backup succesvol ingeladen!");
+                // Scenario 1: Het is een pure array (direct een lijst van facturen of klanten)
+                if (Array.isArray(data)) {
+                    if (data.length > 0 && (data[0].nr || data[0].totaal)) {
+                        localStorage.setItem("chev_historie", JSON.stringify(data));
+                    } else {
+                        localStorage.setItem("chev_klanten", JSON.stringify(data));
+                    }
+                } 
+                // Scenario 2: Het is een gestructureerd object
+                else if (typeof data === "object" && data !== null) {
+                    const k = data.chev_klanten || data.klanten || data.klantenLijst;
+                    const h = data.chev_historie || data.historie || data.facturenHistorie;
+                    const n = data.chev_nummer || data.nummer || data.huidigNummer;
+                    const b = data.chev_mijnbedrijf || data.bedrijf || data.inputBedrijfNaam;
+
+                    if (k) localStorage.setItem("chev_klanten", typeof k === 'string' ? k : JSON.stringify(k));
+                    if (h) localStorage.setItem("chev_historie", typeof h === 'string' ? h : JSON.stringify(h));
+                    if (n) localStorage.setItem("chev_nummer", n);
+                    if (b) localStorage.setItem("chev_mijnbedrijf", b);
+                }
+
+                alert("Gegevens succesvol hersteld en ingeladen!");
                 location.reload();
             } catch (err) {
-                alert("Fout bij het technisch verwerken van dit bestand.");
+                alert("Fout bij het lezen van het bestand. Zorg dat het een geldig .json bestand is.");
             }
         };
         reader.readAsText(file);
     }
+</script>
+</body>
+</html>
