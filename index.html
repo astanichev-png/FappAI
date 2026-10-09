@@ -688,6 +688,7 @@ function maakPDF(nr, dRaw, k, regels, ref) {
 }
 
 function getHuidigeFactuurData() {
+    saveBedrijf(); // Altijd meest recente bedrijfsgegevens meenemen
     const idx = $("klantSelect").value;
     if (idx === "") return null;
 
@@ -784,6 +785,7 @@ async function verstuurViaAPI() {
 }
 
 function exportUBL() {
+    saveBedrijf(); // Zorg dat de meest recente bedrijfsgegevens worden gebruikt
     const idx = $("klantSelect").value;
     if (idx === "") return alert("Selecteer eerst een klant");
     
@@ -1012,6 +1014,10 @@ function verwijderFactuur(index) {
 }
 
 function exportDatabase() {
+    // 💡 Forceer dat actieve invoer direct wordt opgeslagen in objecten
+    saveBedrijf();
+    saveApiConfig();
+
     const data = { klanten, facturen, bedrijf, apiConfig, factuurnr: nummer };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
@@ -1030,7 +1036,6 @@ function importDatabase(event) {
             const data = JSON.parse(e.target.result);
             
             if (confirm("Weet je het zeker? Dit overschrijft de huidige gegevens in deze browser.")) {
-                // Lees data robuust uit met fallbacks voor afwijkende sleutelnamen
                 klanten = Array.isArray(data.klanten) ? data.klanten : klanten;
                 facturen = Array.isArray(data.facturen) ? data.facturen : facturen;
                 bedrijf = data.bedrijf || bedrijf;
@@ -1041,14 +1046,12 @@ function importDatabase(event) {
                     nummer = parseInt(geladenNummer);
                 }
 
-                // Opslaan in LocalStorage
                 localStorage.setItem("klanten", JSON.stringify(klanten));
                 localStorage.setItem("facturen", JSON.stringify(facturen));
                 localStorage.setItem("bedrijf", JSON.stringify(bedrijf));
                 localStorage.setItem("apiConfig", JSON.stringify(apiConfig));
                 localStorage.setItem("factuurnr", nummer);
                 
-                // Formulier en tabellen herladen
                 init();
                 alert("✅ Database succesvol geïmporteerd!");
             }
