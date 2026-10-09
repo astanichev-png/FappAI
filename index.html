@@ -28,6 +28,7 @@
             --danger-color: #ff3b30;
             --purple-color: #5856d6;
             --info-color: #5ac8fa;
+            --secondary-color: #8e8e93;
         }
 
         body {
@@ -119,6 +120,7 @@
         .btn-ubl { background-color: var(--purple-color); }
         .btn-api { background-color: var(--primary-color); }
         .btn-backup { background-color: var(--warning-color); }
+        .btn-new { background-color: var(--secondary-color); }
         .btn-import { background-color: var(--info-color); color: #1c1c1e; text-align: center; display: inline-block; font-weight: 600; cursor: pointer; padding: 10px 20px; border-radius: 8px; }
         .btn-danger { background-color: var(--danger-color); }
 
@@ -245,6 +247,7 @@
         <button type="button" class="btn-pdf" id="btnExportPDF">📄 PDF DOWNLOAD</button>
         <button type="button" class="btn-ubl" id="btnExportUBL">🤖 PEPPOL E-FACTUUR (UBL/XML)</button>
         <button type="button" class="btn-api" id="btnSendAPI">🚀 VERSTUUR VIA API</button>
+        <button type="button" class="btn-new" id="btnNieuweFactuur">➕ Nieuwe Factuur</button>
         <button type="button" class="btn-backup" id="btnExportDB">💾 Backup Downloaden</button>
         <label for="importInput" class="btn-import">📂 Import Database</label>
         <input type="file" id="importInput" accept=".json">
@@ -308,13 +311,24 @@
 <script>
 let klanten = JSON.parse(localStorage.getItem("klanten") || "[]");
 let facturen = JSON.parse(localStorage.getItem("facturen") || "[]");
-let nummer = parseInt(localStorage.getItem("factuurnr")) || 6374;
+let nummer =bepaalVolgendNummer();
 let bedrijf = JSON.parse(localStorage.getItem("bedrijf") || "{}");
 let apiConfig = JSON.parse(localStorage.getItem("apiConfig") || "{}");
 
 const $ = id => document.getElementById(id);
 
+function bepaalVolgendNummer() {
+    let opgeslagen = parseInt(localStorage.getItem("factuurnr")) || 6374;
+    if (facturen.length > 0) {
+        const maxHistorieNr = Math.max(...facturen.map(f => parseInt(f.nr) || 0));
+        return Math.max(maxHistorieNr + 1, opgeslagen);
+    }
+    return opgeslagen;
+}
+
 function init() {
+    nummer = bepaalVolgendNummer();
+
     $("klantSelect").innerHTML = `<option value="">Kies klant</option>` +
         klanten.map((k, i) => `<option value="${i}">${k.naam}</option>`).join("");
     
@@ -355,6 +369,7 @@ function setupEventListeners() {
     $("btnExportPDF").addEventListener("click", exportFactuur);
     $("btnExportUBL").addEventListener("click", exportUBL);
     $("btnSendAPI").addEventListener("click", verstuurViaAPI);
+    $("btnNieuweFactuur").addEventListener("click", nieuweFactuurFormulier);
     $("btnExportDB").addEventListener("click", exportDatabase);
     $("importInput").addEventListener("change", importDatabase);
 }
@@ -364,6 +379,18 @@ function updateAllLists() {
     updateHistorieLijst();
     updateKlantenLijst();
     updateStatistieken();
+}
+
+function nieuweFactuurFormulier() {
+    if (confirm("Wil je een schone nieuwe factuur starten met het volgende factuurnummer?")) {
+        nummer = bepaalVolgendNummer();
+        $("factuurNr").innerText = nummer;
+        $("klantSelect").value = "";
+        $("factuurReferentie").value = "";
+        document.querySelector("#regelsTabel tbody").innerHTML = "";
+        regelToevoegen(); // Start met 1 lege regel
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 }
 
 function saveBedrijf() {
@@ -688,7 +715,7 @@ function maakPDF(nr, dRaw, k, regels, ref) {
 }
 
 function getHuidigeFactuurData() {
-    saveBedrijf(); // Altijd meest recente bedrijfsgegevens meenemen
+    saveBedrijf();
     const idx = $("klantSelect").value;
     if (idx === "") return null;
 
@@ -722,11 +749,13 @@ function slaFactuurOpInHistorie(fData) {
         facturen[bestaandeIndex] = fData;
     } else {
         facturen.push(fData); 
-        nummer++; 
-        localStorage.setItem("factuurnr", nummer);
     }
 
+    // Sla het volgende nummer op (huidige nummer + 1)
+    let volgendNummer = parseInt(nummer) + 1;
+    localStorage.setItem("factuurnr", volgendNummer);
     localStorage.setItem("facturen", JSON.stringify(facturen));
+    
     init();
 }
 
@@ -738,7 +767,7 @@ function exportFactuur() {
     slaFactuurOpInHistorie(fData);
 
     setTimeout(() => {
-        alert("📊 Factuur opgeslagen in historie!");
+        alert("📊 Factuur opgeslagen in historie en nummer verhoogd!");
     }, 500);
 }
 
@@ -785,7 +814,7 @@ async function verstuurViaAPI() {
 }
 
 function exportUBL() {
-    saveBedrijf(); // Zorg dat de meest recente bedrijfsgegevens worden gebruikt
+    saveBedrijf();
     const idx = $("klantSelect").value;
     if (idx === "") return alert("Selecteer eerst een klant");
     
@@ -987,7 +1016,7 @@ function updateHistorieLijst() {
 
 function laadFactuurInEditor(index) {
     const f = facturen[index];
-    if (!confirm("Factuur herladen in editor?")) return;
+    if (!confirm("Factuur herladen in editor? Let op: dit laadt een reeds bestaand factuurnummer.")) return;
 
     nummer = f.nr;
     $("factuurNr").innerText = nummer;
@@ -1014,7 +1043,6 @@ function verwijderFactuur(index) {
 }
 
 function exportDatabase() {
-    // 💡 Forceer dat actieve invoer direct wordt opgeslagen in objecten
     saveBedrijf();
     saveApiConfig();
 
@@ -1067,6 +1095,9 @@ function importDatabase(event) {
 document.addEventListener("DOMContentLoaded", () => {
     setupEventListeners();
     init();
+    if (document.querySelectorAll("#regelsTabel tbody tr").length === 0) {
+        regelToevoegen();
+    }
 });
 </script>
 </body>
