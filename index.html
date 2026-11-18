@@ -54,6 +54,11 @@
                 grid-template-columns: 1fr 1fr;
                 gap: 20px;
             }
+            .grid-3 {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 15px;
+            }
         }
 
         .card {
@@ -204,7 +209,7 @@
 
     <!-- Factuur Regels Bouwer -->
     <div class="card">
-        <div class="grid-2">
+        <div class="grid-3">
             <div class="form-group">
                 <label for="betaling">Betalingstermijn</label>
                 <select id="betaling">
@@ -217,6 +222,10 @@
                 <label for="factuurReferentie">Referentie / Project</label>
                 <input id="factuurReferentie" placeholder="Bijv. Project X">
             </div>
+            <div class="form-group">
+                <label for="sapOrder">SAP / Inkooporder (UU)</label>
+                <input id="sapOrder" placeholder="Bijv. 4500123456">
+            </div>
         </div>
 
         <h3>Factuurregels</h3>
@@ -224,9 +233,10 @@
             <table id="regelsTabel">
                 <thead>
                     <tr>
-                        <th>Omschrijving</th>
-                        <th style="width: 100px;">Aantal</th>
-                        <th style="width: 120px;">Prijs (€)</th>
+                        <th>Type regel</th>
+                        <th>Omschrijving / Tekst</th>
+                        <th style="width: 90px;" class="th-aantal">Aantal</th>
+                        <th style="width: 100px;" class="th-prijs">Prijs (€)</th>
                         <th style="width: 50px;"></th>
                     </tr>
                 </thead>
@@ -311,7 +321,7 @@
 <script>
 let klanten = JSON.parse(localStorage.getItem("klanten") || "[]");
 let facturen = JSON.parse(localStorage.getItem("facturen") || "[]");
-let nummer =bepaalVolgendNummer();
+let nummer = bepaalVolgendNummer();
 let bedrijf = JSON.parse(localStorage.getItem("bedrijf") || "{}");
 let apiConfig = JSON.parse(localStorage.getItem("apiConfig") || "{}");
 
@@ -363,6 +373,7 @@ function setupEventListeners() {
     $("datum").addEventListener("change", updatePreview);
     $("betaling").addEventListener("change", updatePreview);
     $("factuurReferentie").addEventListener("input", updatePreview);
+    $("sapOrder").addEventListener("input", updatePreview);
 
     $("btnRegelToevoegen").addEventListener("click", () => regelToevoegen());
     $("btnKlantToevoegen").addEventListener("click", klantToevoegen);
@@ -387,8 +398,9 @@ function nieuweFactuurFormulier() {
         $("factuurNr").innerText = nummer;
         $("klantSelect").value = "";
         $("factuurReferentie").value = "";
+        $("sapOrder").value = "";
         document.querySelector("#regelsTabel tbody").innerHTML = "";
-        regelToevoegen(); // Start met 1 lege regel
+        regelToevoegen();
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 }
@@ -498,33 +510,61 @@ function saveKlantWijziging(index) {
     init();
 }
 
-function regelToevoegen(o = "", a = 1, p = 0) {
+function regelToevoegen(type = "normaal", o = "", a = 1, p = 0) {
     const tbody = document.querySelector("#regelsTabel tbody");
     const row = tbody.insertRow();
     
     row.innerHTML = `
-        <td><input type="text" class="row-o" value="${o}" style="width:95%"></td>
+        <td>
+            <select class="row-type" style="width:100%">
+                <option value="normaal" ${type === "normaal" ? "selected" : ""}>Standaard</option>
+                <option value="tekst" ${type === "tekst" ? "selected" : ""}>Vrije tekst</option>
+            </select>
+        </td>
+        <td><input type="text" class="row-o" value="${o}" placeholder="Omschrijving of tekst" style="width:95%"></td>
         <td><input type="number" class="row-a" value="${a}" style="width:70px"></td>
         <td><input type="number" step="0.01" class="row-p" value="${p}" style="width:80px"></td>
         <td><button type="button" class="btn-danger btnDeleteRow">❌</button></td>
     `;
 
+    const typeSelect = row.querySelector(".row-type");
+    const inputAantal = row.querySelectorAll("input")[1];
+    const inputPrijs = row.querySelectorAll("input")[2];
+
+    function updateRegelZichtbaarheid() {
+        if (typeSelect.value === "tekst") {
+            inputAantal.style.display = "none";
+            inputPrijs.style.display = "none";
+            inputAantal.value = "0";
+            inputPrijs.value = "0";
+        } else {
+            inputAantal.style.display = "block";
+            inputPrijs.style.display = "block";
+            if (inputAantal.value == "0") inputAantal.value = "1";
+        }
+        bereken();
+    }
+
+    typeSelect.addEventListener("change", updateRegelZichtbaarheid);
     row.querySelectorAll("input").forEach(input => input.addEventListener("input", bereken));
     row.querySelector(".btnDeleteRow").addEventListener("click", () => {
         row.remove();
         bereken();
     });
 
-    bereken();
+    updateRegelZichtbaarheid();
 }
 
 function bereken() {
     let sub = 0;
     document.querySelectorAll("#regelsTabel tbody tr").forEach(row => {
-        const inputs = row.querySelectorAll("input");
-        const a = parseFloat(inputs[1].value) || 0;
-        const p = parseFloat(inputs[2].value) || 0;
-        sub += a * p;
+        const type = row.querySelector(".row-type").value;
+        if (type !== "tekst") {
+            const inputs = row.querySelectorAll("input");
+            const a = parseFloat(inputs[1].value) || 0;
+            const p = parseFloat(inputs[2].value) || 0;
+            sub += a * p;
+        }
     });
 
     $("sub").innerText = sub.toFixed(2);
@@ -538,6 +578,7 @@ function updatePreview() {
     const klant = klanten[idx];
     const tot = parseFloat($("tot").innerText) || 0;
     const ref = $("factuurReferentie").value;
+    const sap = $("sapOrder").value;
 
     let html = `
         <div style="font-family:'Inter',sans-serif; font-size:24px; font-weight:800; color:#1c1c1e; margin-bottom:15px; letter-spacing:-1px;">CHEV-A</div>
@@ -552,25 +593,38 @@ function updatePreview() {
         html += `<br>`;
     }
     if (ref) {
-        html += `<b>Referentie:</b> ${ref}<br><br>`;
+        html += `<b>Referentie:</b> ${ref}<br>`;
+    }
+    if (sap) {
+        html += `<b>SAP Inkooporder:</b> ${sap}<br>`;
+    }
+    if (ref || sap) {
+        html += `<br>`;
     }
 
     html += `<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th>Totaal</th></tr></thead><tbody>`;
     
     document.querySelectorAll("#regelsTabel tbody tr").forEach(row => {
+        const type = row.querySelector(".row-type").value;
         const inputs = row.querySelectorAll("input");
         const o = inputs[0].value;
-        const a = parseFloat(inputs[1].value) || 0;
-        const p = parseFloat(inputs[2].value) || 0;
-        const t = (a * p).toFixed(2);
-        html += `<tr><td>${o}</td><td>${a}</td><td>€ ${p.toFixed(2)}</td><td>€ ${t}</td></tr>`;
+        if (type === "tekst") {
+            if (o.trim() !== "") {
+                html += `<tr><td colspan="4"><b>${o}</b></td></tr>`;
+            }
+        } else {
+            const a = parseFloat(inputs[1].value) || 0;
+            const p = parseFloat(inputs[2].value) || 0;
+            const t = (a * p).toFixed(2);
+            html += `<tr><td>${o}</td><td>${a}</td><td>€ ${p.toFixed(2)}</td><td>€ ${t}</td></tr>`;
+        }
     });
     
     html += `</tbody></table><br><div style="text-align:right;"><b>Totaal: € ${tot.toFixed(2)}</b></div>`;
     $("previewContent").innerHTML = html;
 }
 
-function maakPDF(nr, dRaw, k, regels, ref) {
+function maakPDF(nr, dRaw, k, regels, ref, sap) {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: "pt", format: "a4" });
     const marginLeft = 40;
@@ -624,11 +678,16 @@ function maakPDF(nr, dRaw, k, regels, ref) {
         subOffset += 14;
     }
 
-    y += subOffset + 30;
+    y += subOffset + 25;
     if (ref) { 
         pdf.text(`Referentie: ${ref}`, marginLeft, y); 
-        y += 20; 
+        y += 15; 
     }
+    if (sap) {
+        pdf.text(`SAP Inkooporder: ${sap}`, marginLeft, y);
+        y += 15;
+    }
+    y += 10;
 
     function tekenTabelKop(posY) {
         pdf.setFillColor(235, 235, 240);
@@ -646,27 +705,45 @@ function maakPDF(nr, dRaw, k, regels, ref) {
     pdf.setFont("Helvetica", "normal");
 
     regels.forEach((r) => {
-        const totaal = (parseFloat(r.a) * parseFloat(r.p)).toFixed(2);
-        const lines = pdf.splitTextToSize(r.o || "", 280);
-        const rowHeight = (lines.length * 12) + 10;
+        if (r.type === "tekst") {
+            if (r.o && r.o.trim() !== "") {
+                const lines = pdf.splitTextToSize(r.o, marginRight - marginLeft);
+                const rowHeight = (lines.length * 12) + 10;
+                if (y + rowHeight > pageHeight - 110) {
+                    pdf.addPage();
+                    y = 50;
+                    tekenTabelKop(y);
+                    y += 35;
+                    pdf.setFont("Helvetica", "normal");
+                }
+                pdf.setFont("Helvetica", "bold");
+                pdf.text(lines, marginLeft + 5, y);
+                pdf.setFont("Helvetica", "normal");
+                y += rowHeight + 4;
+            }
+        } else {
+            const totaal = (parseFloat(r.a) * parseFloat(r.p)).toFixed(2);
+            const lines = pdf.splitTextToSize(r.o || "", 280);
+            const rowHeight = (lines.length * 12) + 10;
 
-        if (y + rowHeight > pageHeight - 110) {
-            pdf.addPage();
-            y = 50;
-            tekenTabelKop(y);
-            y += 35;
-            pdf.setFont("Helvetica", "normal");
+            if (y + rowHeight > pageHeight - 110) {
+                pdf.addPage();
+                y = 50;
+                tekenTabelKop(y);
+                y += 35;
+                pdf.setFont("Helvetica", "normal");
+            }
+            
+            pdf.setFillColor(250, 250, 250);
+            pdf.rect(marginLeft, y - 10, marginRight - marginLeft, rowHeight, 'F');
+            
+            pdf.text(lines, marginLeft + 5, y);
+            pdf.text(String(r.a), 380, y, { align: "right" });
+            pdf.text(`€ ${parseFloat(r.p).toFixed(2)}`, 460, y, { align: "right" });
+            pdf.text(`€ ${totaal}`, marginRight - 5, y, { align: "right" });
+            
+            y += rowHeight + 4;
         }
-        
-        pdf.setFillColor(250, 250, 250);
-        pdf.rect(marginLeft, y - 10, marginRight - marginLeft, rowHeight, 'F');
-        
-        pdf.text(lines, marginLeft + 5, y);
-        pdf.text(String(r.a), 380, y, { align: "right" });
-        pdf.text(`€ ${parseFloat(r.p).toFixed(2)}`, 460, y, { align: "right" });
-        pdf.text(`€ ${totaal}`, marginRight - 5, y, { align: "right" });
-        
-        y += rowHeight + 4;
     });
 
     if (y + 90 > pageHeight - 110) {
@@ -722,10 +799,17 @@ function getHuidigeFactuurData() {
     const klant = klanten[idx];
     const datum = $("datum").value;
     const ref = $("factuurReferentie").value;
+    const sap = $("sapOrder").value;
     
     const regels = [...document.querySelectorAll("#regelsTabel tbody tr")].map(row => {
+        const type = row.querySelector(".row-type").value;
         const inputs = row.querySelectorAll("input");
-        return { o: inputs[0].value, a: inputs[1].value, p: inputs[2].value };
+        return { 
+            type: type, 
+            o: inputs[0].value, 
+            a: type === "tekst" ? 0 : inputs[1].value, 
+            p: type === "tekst" ? 0 : inputs[2].value 
+        };
     });
 
     return {
@@ -739,6 +823,7 @@ function getHuidigeFactuurData() {
         btw: $("btw").innerText,
         tot: $("tot").innerText,
         referentie: ref,
+        sapOrder: sap,
         termijn: $("betaling").value
     };
 }
@@ -751,7 +836,6 @@ function slaFactuurOpInHistorie(fData) {
         facturen.push(fData); 
     }
 
-    // Sla het volgende nummer op (huidige nummer + 1)
     let volgendNummer = parseInt(nummer) + 1;
     localStorage.setItem("factuurnr", volgendNummer);
     localStorage.setItem("facturen", JSON.stringify(facturen));
@@ -763,7 +847,7 @@ function exportFactuur() {
     const fData = getHuidigeFactuurData();
     if (!fData) return alert("Selecteer klant");
 
-    maakPDF(fData.nr, fData.datumRaw, fData.klant, fData.regels, fData.referentie);
+    maakPDF(fData.nr, fData.datumRaw, fData.klant, fData.regels, fData.referentie, fData.sapOrder);
     slaFactuurOpInHistorie(fData);
 
     setTimeout(() => {
@@ -821,6 +905,7 @@ function exportUBL() {
     const k = klanten[idx];
     const datum = $("datum").value;
     const ref = $("factuurReferentie").value || "Geen referentie";
+    const sap = $("sapOrder").value.trim();
     const sub = parseFloat($("sub").innerText).toFixed(2);
     const btw = parseFloat($("btw").innerText).toFixed(2);
     const tot = parseFloat($("tot").innerText).toFixed(2);
@@ -837,16 +922,20 @@ function exportUBL() {
     }
 
     let regelsXml = "";
-    document.querySelectorAll("#regelsTabel tbody tr").forEach((row, index) => {
+    let xmlLineIndex = 1;
+    document.querySelectorAll("#regelsTabel tbody tr").forEach((row) => {
+        const type = row.querySelector(".row-type").value;
         const inputs = row.querySelectorAll("input");
         const omschrijving = inputs[0].value || "Dienst";
-        const aantal = parseFloat(inputs[1].value) || 0;
-        const prijs = parseFloat(inputs[2].value) || 0;
-        const regelTotaal = (aantal * prijs).toFixed(2);
 
-        regelsXml += `
+        if (type !== "tekst") {
+            const aantal = parseFloat(inputs[1].value) || 0;
+            const prijs = parseFloat(inputs[2].value) || 0;
+            const regelTotaal = (aantal * prijs).toFixed(2);
+
+            regelsXml += `
     <cac:InvoiceLine>
-        <cbc:ID>${index + 1}</cbc:ID>
+        <cbc:ID>${xmlLineIndex++}</cbc:ID>
         <cbc:InvoicedQuantity unitCode="H87">${aantal}</cbc:InvoicedQuantity>
         <cbc:LineExtensionAmount currencyID="EUR">${regelTotaal}</cbc:LineExtensionAmount>
         <cac:Item>
@@ -863,6 +952,7 @@ function exportUBL() {
             <cbc:PriceAmount currencyID="EUR">${prijs.toFixed(2)}</cbc:PriceAmount>
         </cac:Price>
     </cac:InvoiceLine>`;
+        }
     });
 
     const supplierBtw = bedrijf.btw || "NL000000000B01";
@@ -878,6 +968,11 @@ function exportUBL() {
         ? `<cbc:EndpointID schemeID="0106">${customerKvk}</cbc:EndpointID>`
         : `<cbc:EndpointID schemeID="9944">${customerBtw}</cbc:EndpointID>`;
 
+    const orderReferenceXml = sap ? `
+    <cac:OrderReference>
+        <cbc:ID>${sap}</cbc:ID>
+    </cac:OrderReference>` : '';
+
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" 
          xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" 
@@ -889,9 +984,12 @@ function exportUBL() {
     <cbc:DueDate>${vervalDatum}</cbc:DueDate>
     <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
     <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
-    <cbc:BuyerReference>${ref}</cbc:BuyerReference>
+    <cbc:BuyerReference>${ref}</cbc:BuyerReference>${orderReferenceXml}
     
-    <!-- Leverancier -->
+    <cac:Delivery>
+        <cbc:ActualDeliveryDate>${datum}</cbc:ActualDeliveryDate>
+    </cac:Delivery>
+    
     <cac:AccountingSupplierParty>
         <cac:Party>
             ${supplierEndpoint}
@@ -918,7 +1016,6 @@ function exportUBL() {
         </cac:Party>
     </cac:AccountingSupplierParty>
 
-    <!-- Afnemer -->
     <cac:AccountingCustomerParty>
         <cac:Party>
             ${customerEndpoint}
@@ -945,7 +1042,6 @@ function exportUBL() {
         </cac:Party>
     </cac:AccountingCustomerParty>
 
-    <!-- Betaalinstructie -->
     <cac:PaymentMeans>
         <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
         <cbc:PaymentID>${nummer}</cbc:PaymentID>
@@ -954,7 +1050,6 @@ function exportUBL() {
         </cac:PayeeFinancialAccount>
     </cac:PaymentMeans>
 
-    <!-- BTW Totaal & Specificatie -->
     <cac:TaxTotal>
         <cbc:TaxAmount currencyID="EUR">${btw}</cbc:TaxAmount>
         <cac:TaxSubtotal>
@@ -970,7 +1065,6 @@ function exportUBL() {
         </cac:TaxSubtotal>
     </cac:TaxTotal>
 
-    <!-- Totaalbedragen -->
     <cac:LegalMonetaryTotal>
         <cbc:LineExtensionAmount currencyID="EUR">${sub}</cbc:LineExtensionAmount>
         <cbc:TaxExclusiveAmount currencyID="EUR">${sub}</cbc:TaxExclusiveAmount>
@@ -1016,12 +1110,13 @@ function updateHistorieLijst() {
 
 function laadFactuurInEditor(index) {
     const f = facturen[index];
-    if (!confirm("Factuur herladen in editor? Let op: dit laadt een reeds bestaand factuurnummer.")) return;
+    if (!confirm("Factuur herladen in editor?")) return;
 
     nummer = f.nr;
     $("factuurNr").innerText = nummer;
     $("datum").value = f.datumRaw;
     $("factuurReferentie").value = f.referentie || "";
+    $("sapOrder").value = f.sapOrder || "";
     if (f.termijn) $("betaling").value = f.termijn;
     
     const kIdx = klanten.findIndex(k => k.naam === f.klant.naam);
@@ -1030,7 +1125,7 @@ function laadFactuurInEditor(index) {
     const tbody = document.querySelector("#regelsTabel tbody");
     tbody.innerHTML = "";
     
-    f.regels.forEach(r => regelToevoegen(r.o, r.a, r.p));
+    f.regels.forEach(r => regelToevoegen(r.type || "normaal", r.o, r.a, r.p));
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
