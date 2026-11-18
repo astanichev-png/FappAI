@@ -905,248 +905,43 @@ function exportUBL() {
     const k = klanten[idx];
     const datum = $("datum").value;
     const ref = $("factuurReferentie").value || "Geen referentie";
-    const sap = $("sapOrder").value.trim();
-    const sub = parseFloat($("sub").innerText).toFixed(2);
-    const btw = parseFloat($("btw").innerText).toFixed(2);
     const tot = parseFloat($("tot").innerText).toFixed(2);
 
-    let vervalDatum = datum;
-    if ($("betaling").value.includes("30")) {
-        let d = new Date(datum);
-        d.setDate(d.getDate() + 30);
-        vervalDatum = d.toISOString().split('T')[0];
-    } else {
-        let d = new Date(datum);
-        d.setDate(d.getDate() + 14);
-        vervalDatum = d.toISOString().split('T')[0];
-    }
-
-    let regelsXml = "";
-    let xmlLineIndex = 1;
-    document.querySelectorAll("#regelsTabel tbody tr").forEach((row) => {
-        const type = row.querySelector(".row-type").value;
-        const inputs = row.querySelectorAll("input");
-        const omschrijving = inputs[0].value || "Dienst";
-
-        if (type !== "tekst") {
-            const aantal = parseFloat(inputs[1].value) || 0;
-            const prijs = parseFloat(inputs[2].value) || 0;
-            const regelTotaal = (aantal * prijs).toFixed(2);
-
-            regelsXml += `
-    <cac:InvoiceLine>
-        <cbc:ID>${xmlLineIndex++}</cbc:ID>
-        <cbc:InvoicedQuantity unitCode="H87">${aantal}</cbc:InvoicedQuantity>
-        <cbc:LineExtensionAmount currencyID="EUR">${regelTotaal}</cbc:LineExtensionAmount>
-        <cac:Item>
-            <cbc:Name>${omschrijving}</cbc:Name>
-            <cac:ClassifiedTaxCategory>
-                <cbc:ID>S</cbc:ID>
-                <cbc:Percent>21</cbc:Percent>
-                <cac:TaxScheme>
-                    <cbc:ID>VAT</cbc:ID>
-                </cac:TaxScheme>
-            </cac:ClassifiedTaxCategory>
-        </cac:Item>
-        <cac:Price>
-            <cbc:PriceAmount currencyID="EUR">${prijs.toFixed(2)}</cbc:PriceAmount>
-        </cac:Price>
-    </cac:InvoiceLine>`;
-        }
-    });
-
-    const supplierBtw = bedrijf.btw || "NL000000000B01";
-    const supplierKvk = bedrijf.kvk || "";
-    const customerBtw = k.btw || "NL000000000B01";
-    const customerKvk = k.kvk || "";
-
-    const supplierEndpoint = supplierKvk 
-        ? `<cbc:EndpointID schemeID="0106">${supplierKvk}</cbc:EndpointID>`
-        : `<cbc:EndpointID schemeID="9944">${supplierBtw}</cbc:EndpointID>`;
-
-    const customerEndpoint = customerKvk 
-        ? `<cbc:EndpointID schemeID="0106">${customerKvk}</cbc:EndpointID>`
-        : `<cbc:EndpointID schemeID="9944">${customerBtw}</cbc:EndpointID>`;
-
-    const orderReferenceXml = sap ? `
-    <cac:OrderReference>
-        <cbc:ID>${sap}</cbc:ID>
-    </cac:OrderReference>` : '';
-
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2" 
-         xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" 
-         xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
-    <cbc:CustomizationID>urn:cen.eu:en16931:2017#compliant#urn:fdc:peppol.eu:poacc:trns:invoice_3:3</cbc:CustomizationID>
-    <cbc:ProfileID>urn:fdc:peppol.eu:2017:poacc:billing:01:1.0</cbc:ProfileID>
-    <cbc:ID>${nummer}</cbc:ID>
-    <cbc:IssueDate>${datum}</cbc:IssueDate>
-    <cbc:DueDate>${vervalDatum}</cbc:DueDate>
-    <cbc:InvoiceTypeCode>380</cbc:InvoiceTypeCode>
-    <cbc:DocumentCurrencyCode>EUR</cbc:DocumentCurrencyCode>
-    <cbc:BuyerReference>${ref}</cbc:BuyerReference>${orderReferenceXml}
-    
-    <cac:Delivery>
-        <cbc:ActualDeliveryDate>${datum}</cbc:ActualDeliveryDate>
-    </cac:Delivery>
-    
-    <cac:AccountingSupplierParty>
-        <cac:Party>
-            ${supplierEndpoint}
-            <cac:PartyName>
-                <cbc:Name>${bedrijf.naam || "Uw Bedrijf"}</cbc:Name>
-            </cac:PartyName>
-            <cac:PostalAddress>
-                <cbc:StreetName>${bedrijf.adres || "Straatnaam"}</cbc:StreetName>
-                <cbc:CityName>Amsterdam</cbc:CityName>
-                <cac:Country>
-                    <cbc:IdentificationCode>NL</cbc:IdentificationCode>
-                </cac:Country>
-            </cac:PostalAddress>
-            <cac:PartyTaxScheme>
-                <cbc:CompanyID>${supplierBtw}</cbc:CompanyID>
-                <cac:TaxScheme>
-                    <cbc:ID>VAT</cbc:ID>
-                </cac:TaxScheme>
-            </cac:PartyTaxScheme>
-            <cac:PartyLegalEntity>
-                <cbc:RegistrationName>${bedrijf.naam || "Uw Bedrijf"}</cbc:RegistrationName>
-                ${supplierKvk ? `<cbc:CompanyID schemeID="0106">${supplierKvk}</cbc:CompanyID>` : ''}
-            </cac:PartyLegalEntity>
-        </cac:Party>
-    </cac:AccountingSupplierParty>
-
-    <cac:AccountingCustomerParty>
-        <cac:Party>
-            ${customerEndpoint}
-            <cac:PartyName>
-                <cbc:Name>${k.naam}</cbc:Name>
-            </cac:PartyName>
-            <cac:PostalAddress>
-                <cbc:StreetName>${k.adres || "Straatnaam"}</cbc:StreetName>
-                <cbc:CityName>Onbekend</cbc:CityName>
-                <cac:Country>
-                    <cbc:IdentificationCode>NL</cbc:IdentificationCode>
-                </cac:Country>
-            </cac:PostalAddress>
-            <cac:PartyTaxScheme>
-                <cbc:CompanyID>${customerBtw}</cbc:CompanyID>
-                <cac:TaxScheme>
-                    <cbc:ID>VAT</cbc:ID>
-                </cac:TaxScheme>
-            </cac:PartyTaxScheme>
-            <cac:PartyLegalEntity>
-                <cbc:RegistrationName>${k.naam}</cbc:RegistrationName>
-                ${customerKvk ? `<cbc:CompanyID schemeID="0106">${customerKvk}</cbc:CompanyID>` : ''}
-            </cac:PartyLegalEntity>
-        </cac:Party>
-    </cac:AccountingCustomerParty>
-
-    <cac:PaymentMeans>
-        <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
-        <cbc:PaymentID>${nummer}</cbc:PaymentID>
-        <cac:PayeeFinancialAccount>
-            <cbc:ID>${bedrijf.iban || "NL00BANK0000000000"}</cbc:ID>
-        </cac:PayeeFinancialAccount>
-    </cac:PaymentMeans>
-
-    <cac:TaxTotal>
-        <cbc:TaxAmount currencyID="EUR">${btw}</cbc:TaxAmount>
-        <cac:TaxSubtotal>
-            <cbc:TaxableAmount currencyID="EUR">${sub}</cbc:TaxableAmount>
-            <cbc:TaxAmount currencyID="EUR">${btw}</cbc:TaxAmount>
-            <cac:TaxCategory>
-                <cbc:ID>S</cbc:ID>
-                <cbc:Percent>21</cbc:Percent>
-                <cac:TaxScheme>
-                    <cbc:ID>VAT</cbc:ID>
-                </cac:TaxScheme>
-            </cac:TaxCategory>
-        </cac:TaxSubtotal>
-    </cac:TaxTotal>
-
-    <cac:LegalMonetaryTotal>
-        <cbc:LineExtensionAmount currencyID="EUR">${sub}</cbc:LineExtensionAmount>
-        <cbc:TaxExclusiveAmount currencyID="EUR">${sub}</cbc:TaxExclusiveAmount>
-        <cbc:TaxInclusiveAmount currencyID="EUR">${tot}</cbc:TaxInclusiveAmount>
-        <cbc:PayableAmount currencyID="EUR">${tot}</cbc:PayableAmount>
-    </cac:LegalMonetaryTotal>
-
-    ${regelsXml}
+    // Eenvoudige UBL/XML generator structuur
+    let ublXML = `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+    <ID>${nummer}</ID>
+    <IssueDate>${datum}</IssueDate>
+    <Note>${ref}</Note>
+    <LegalMonetaryTotal>
+        <PayableAmount currencyID="EUR">${tot}</PayableAmount>
+    </LegalMonetaryTotal>
 </Invoice>`;
 
-    const blob = new Blob([xml], { type: "text/xml" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `Factuur_${nummer}_Peppol_UBL.xml`;
-    link.click();
-}
-
-function updateHistorieLijst() {
-    const tbody = document.querySelector("#historieTabel tbody");
-    tbody.innerHTML = "";
-
-    facturen.forEach((f, i) => {
-        const row = tbody.insertRow();
-        row.innerHTML = `
-            <td>${f.nr}</td>
-            <td>${f.datumNice}</td>
-            <td>${f.klant ? f.klant.naam : '-'}</td>
-            <td>€ ${f.tot}</td>
-            <td>
-                <button type="button" class="btnLoadFactuur" data-index="${i}">🔄</button>
-                <button type="button" class="btn-danger btnDeleteFactuur" data-index="${i}">🗑️</button>
-            </td>
-        `;
-    });
-
-    tbody.querySelectorAll(".btnLoadFactuur").forEach(btn => {
-        btn.addEventListener("click", e => laadFactuurInEditor(e.currentTarget.getAttribute("data-index")));
-    });
-    tbody.querySelectorAll(".btnDeleteFactuur").forEach(btn => {
-        btn.addEventListener("click", e => verwijderFactuur(e.currentTarget.getAttribute("data-index")));
-    });
-}
-
-function laadFactuurInEditor(index) {
-    const f = facturen[index];
-    if (!confirm("Factuur herladen in editor?")) return;
-
-    nummer = f.nr;
-    $("factuurNr").innerText = nummer;
-    $("datum").value = f.datumRaw;
-    $("factuurReferentie").value = f.referentie || "";
-    $("sapOrder").value = f.sapOrder || "";
-    if (f.termijn) $("betaling").value = f.termijn;
-    
-    const kIdx = klanten.findIndex(k => k.naam === f.klant.naam);
-    $("klantSelect").value = kIdx !== -1 ? kIdx : "";
-    
-    const tbody = document.querySelector("#regelsTabel tbody");
-    tbody.innerHTML = "";
-    
-    f.regels.forEach(r => regelToevoegen(r.type || "normaal", r.o, r.a, r.p));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function verwijderFactuur(index) {
-    if (confirm("Verwijderen uit historie? Dit beïnvloedt je statistiek.")) {
-        facturen.splice(index, 1);
-        localStorage.setItem("facturen", JSON.stringify(facturen));
-        init();
-    }
+    const blob = new Blob([ublXML], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `UBL-Factuur-${nummer}.xml`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 function exportDatabase() {
-    saveBedrijf();
-    saveApiConfig();
-
-    const data = { klanten, facturen, bedrijf, apiConfig, factuurnr: nummer };
+    const data = {
+        klanten: klanten,
+        facturen: facturen,
+        factuurnr: localStorage.getItem("factuurnr"),
+        bedrijf: bedrijf,
+        apiConfig: apiConfig
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `CHEV-A_Backup_${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `CHEV-A-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
 }
 
 function importDatabase(event) {
@@ -1157,43 +952,68 @@ function importDatabase(event) {
     reader.onload = function(e) {
         try {
             const data = JSON.parse(e.target.result);
+            if (data.klanten) localStorage.setItem("klanten", JSON.stringify(data.klanten));
+            if (data.facturen) localStorage.setItem("facturen", JSON.stringify(data.facturen));
+            if (data.factuurnr) localStorage.setItem("factuurnr", data.factuurnr);
+            if (data.bedrijf) localStorage.setItem("bedrijf", JSON.stringify(data.bedrijf));
+            if (data.apiConfig) localStorage.setItem("apiConfig", JSON.stringify(data.apiConfig));
             
-            if (confirm("Weet je het zeker? Dit overschrijft de huidige gegevens in deze browser.")) {
-                klanten = Array.isArray(data.klanten) ? data.klanten : klanten;
-                facturen = Array.isArray(data.facturen) ? data.facturen : facturen;
-                bedrijf = data.bedrijf || bedrijf;
-                apiConfig = data.apiConfig || apiConfig;
-                
-                let geladenNummer = data.factuurnr || data.factuurNr || data.nummer;
-                if (geladenNummer) {
-                    nummer = parseInt(geladenNummer);
-                }
-
-                localStorage.setItem("klanten", JSON.stringify(klanten));
-                localStorage.setItem("facturen", JSON.stringify(facturen));
-                localStorage.setItem("bedrijf", JSON.stringify(bedrijf));
-                localStorage.setItem("apiConfig", JSON.stringify(apiConfig));
-                localStorage.setItem("factuurnr", nummer);
-                
-                init();
-                alert("✅ Database succesvol geïmporteerd!");
-            }
+            alert("✅ Backup succesvol geïmporteerd!");
+            location.reload();
         } catch (err) {
-            alert("❌ Fout bij inladen bestand: " + err.message + "\n\nIs het gekozen bestand een geldige JSON-backup?");
-        } finally {
-            event.target.value = "";
+            alert("❌ Fout bij het lezen van het JSON-bestand: " + err.message);
         }
     };
     reader.readAsText(file);
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    setupEventListeners();
+function updateHistorieLijst() {
+    const tbody = document.querySelector("#historieTabel tbody");
+    tbody.innerHTML = "";
+
+    if (facturen.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#8e8e93;">Nog geen facturen in historie</td></tr>`;
+        return;
+    }
+
+    facturen.forEach((f, index) => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td>${f.nr}</td>
+            <td>${f.datumNice || f.datumRaw}</td>
+            <td>${f.klant ? f.klant.naam : 'Onbekend'}</td>
+            <td>€ ${f.tot}</td>
+            <td>
+                <button type="button" onclick="downloadHistoriePDF(${index})" style="padding:5px 10px; font-size:12px;" class="btn-pdf">📄 PDF</button>
+                <button type="button" onclick="verwijderFactuur(${index})" style="padding:5px 10px; font-size:12px;" class="btn-danger">🗑️</button>
+            </td>
+        `;
+    });
+}
+
+function downloadHistoriePDF(index) {
+    const f = facturen[index];
+    if (f) {
+        maakPDF(f.nr, f.datumRaw, f.klant, f.regels, f.referentie, f.sapOrder);
+    }
+}
+
+function verwijderFactuur(index) {
+    if (confirm("Weet je zeker dat je deze factuur uit de historie wilt verwijderen?")) {
+        facturen.splice(index, 1);
+        localStorage.setItem("facturen", JSON.stringify(facturen));
+        init();
+    }
+}
+
+// Start applicatie
+window.onload = function() {
     init();
+    setupEventListeners();
     if (document.querySelectorAll("#regelsTabel tbody tr").length === 0) {
         regelToevoegen();
     }
-});
+};
 </script>
 </body>
 </html>
