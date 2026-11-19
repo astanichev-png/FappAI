@@ -709,7 +709,8 @@ function maakPDF(nr, dRaw, k, regels, ref, sap) {
     regels.forEach((r) => {
         if (r.type === "tekst") {
             if (r.o && r.o.trim() !== "") {
-                const lines = pdf.splitTextToSize(r.o, 340);
+                const maxTekstBreedte = (marginRight - 5) - (marginLeft + 5);
+                const lines = pdf.splitTextToSize(r.o, maxTekstBreedte);
                 const rowHeight = (lines.length * 12) + 10;
                 if (y + rowHeight > pageHeight - 110) {
                     pdf.addPage();
