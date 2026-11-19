@@ -735,8 +735,7 @@ function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
     (regels || []).forEach((r) => {
         if (r.type === "tekst") {
             if (r.o && r.o.trim() !== "") {
-                // Ca. 3 letters smaller dan de rechterkant van de grijze standaardbalk
-                const maxTekstBreedte = (marginRight - 22) - (marginLeft + 5);
+                const maxTekstBreedte = (marginRight - 45) - (marginLeft + 5);
                 const lines = pdf.splitTextToSize(r.o, maxTekstBreedte);
                 const rowHeight = (lines.length * 12) + 10;
                 if (y + rowHeight > pageHeight - 110) {
