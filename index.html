@@ -626,7 +626,25 @@ function updatePreview() {
     $("previewContent").innerHTML = html;
 }
 
-function maakPDF(nr, dRaw, k, regels, ref, sap) {
+function berekenTotalenUitRegels(regels) {
+    let sub = 0;
+    (regels || []).forEach((r) => {
+        if (r.type !== "tekst") {
+            const a = parseFloat(r.a) || 0;
+            const p = parseFloat(r.p) || 0;
+            sub += a * p;
+        }
+    });
+    const btw = sub * 0.21;
+    const tot = sub * 1.21;
+    return {
+        sub: sub.toFixed(2),
+        btw: btw.toFixed(2),
+        tot: tot.toFixed(2)
+    };
+}
+
+function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: "pt", format: "a4" });
     const marginLeft = 40;
@@ -749,6 +767,11 @@ function maakPDF(nr, dRaw, k, regels, ref, sap) {
         }
     });
 
+    const berekend = berekenTotalenUitRegels(regels);
+    const subBedrag = totalen && totalen.sub != null ? totalen.sub : berekend.sub;
+    const btwBedrag = totalen && totalen.btw != null ? totalen.btw : berekend.btw;
+    const totBedrag = totalen && totalen.tot != null ? totalen.tot : berekend.tot;
+
     if (y + 90 > pageHeight - 110) {
         pdf.addPage();
         y = 50;
@@ -759,15 +782,15 @@ function maakPDF(nr, dRaw, k, regels, ref, sap) {
     pdf.line(350, y, marginRight, y);
     y += 18;
     pdf.text("Subtotaal:", 460, y, { align: "right" });
-    pdf.text(`€ ${$("sub").innerText}`, marginRight - 5, y, { align: "right" });
+    pdf.text(`€ ${subBedrag}`, marginRight - 5, y, { align: "right" });
     y += 15;
     pdf.text("BTW 21%:", 460, y, { align: "right" });
-    pdf.text(`€ ${$("btw").innerText}`, marginRight - 5, y, { align: "right" });
+    pdf.text(`€ ${btwBedrag}`, marginRight - 5, y, { align: "right" });
     y += 20;
     pdf.setFontSize(11);
     pdf.setFont("Helvetica", "bold");
     pdf.text("Totaalbedrag:", 460, y, { align: "right" });
-    pdf.text(`€ ${$("tot").innerText}`, marginRight - 5, y, { align: "right" });
+    pdf.text(`€ ${totBedrag}`, marginRight - 5, y, { align: "right" });
 
     const totalPages = pdf.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
@@ -864,7 +887,11 @@ function exportFactuur() {
     const fData = getHuidigeFactuurData();
     if (!fData) return alert("Selecteer klant");
 
-    maakPDF(fData.nr, fData.datumRaw, fData.klant, fData.regels, fData.referentie, fData.sapOrder);
+    maakPDF(fData.nr, fData.datumRaw, fData.klant, fData.regels, fData.referentie, fData.sapOrder, {
+        sub: fData.sub,
+        btw: fData.btw,
+        tot: fData.tot
+    });
     slaFactuurOpInHistorie(fData);
 
     setTimeout(() => {
@@ -1056,7 +1083,11 @@ function herroepFactuur(index) {
 function downloadHistoriePDF(index) {
     const f = facturen[index];
     if (f) {
-        maakPDF(f.nr, f.datumRaw, f.klant, f.regels, f.referentie, f.sapOrder);
+        maakPDF(f.nr, f.datumRaw, f.klant, f.regels, f.referentie, f.sapOrder, {
+            sub: f.sub,
+            btw: f.btw,
+            tot: f.tot
+        });
     }
 }
 
