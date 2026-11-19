@@ -327,14 +327,6 @@ let apiConfig = JSON.parse(localStorage.getItem("apiConfig") || "{}");
 
 const $ = id => document.getElementById(id);
 
-function parseBedrag(waarde) {
-    if (typeof waarde === "number") return isNaN(waarde) ? 0 : waarde;
-    if (!waarde) return 0;
-    const genormaliseerd = String(waarde).replace(",", ".").replace(/[^0-9.-]/g, "");
-    const getal = parseFloat(genormaliseerd);
-    return isNaN(getal) ? 0 : getal;
-}
-
 function bepaalVolgendNummer() {
     let opgeslagen = parseInt(localStorage.getItem("factuurnr")) || 6374;
     if (facturen.length > 0) {
@@ -440,7 +432,7 @@ function updateStatistieken() {
     const maanden = {};
     
     facturen.forEach(f => {
-        let bedrag = parseBedrag(f.tot);
+        let bedrag = parseFloat(String(f.tot).replace(',', '.'));
         if (!isNaN(bedrag)) {
             totaal += bedrag;
             let mKey = f.datumRaw ? f.datumRaw.substring(0, 7) : "Onbekend";
@@ -571,8 +563,8 @@ function bereken() {
         const type = row.querySelector(".row-type").value;
         if (type !== "tekst") {
             const inputs = row.querySelectorAll("input");
-            const a = parseBedrag(inputs[1].value);
-            const p = parseBedrag(inputs[2].value);
+            const a = parseFloat(inputs[1].value) || 0;
+            const p = parseFloat(inputs[2].value) || 0;
             sub += a * p;
         }
     });
@@ -586,7 +578,7 @@ function bereken() {
 function updatePreview() {
     const idx = $("klantSelect").value;
     const klant = klanten[idx];
-    const tot = parseBedrag($("tot").innerText);
+    const tot = parseFloat($("tot").innerText) || 0;
     const ref = $("factuurReferentie").value;
     const sap = $("sapOrder").value;
 
@@ -623,8 +615,8 @@ function updatePreview() {
                 html += `<tr><td colspan="4"><b>${o}</b></td></tr>`;
             }
         } else {
-            const a = parseBedrag(inputs[1].value);
-            const p = parseBedrag(inputs[2].value);
+            const a = parseFloat(inputs[1].value) || 0;
+            const p = parseFloat(inputs[2].value) || 0;
             const t = (a * p).toFixed(2);
             html += `<tr><td>${o}</td><td>${a}</td><td>€ ${p.toFixed(2)}</td><td>€ ${t}</td></tr>`;
         }
@@ -634,25 +626,7 @@ function updatePreview() {
     $("previewContent").innerHTML = html;
 }
 
-function berekenTotalenUitRegels(regels) {
-    let sub = 0;
-    (regels || []).forEach((r) => {
-        if (r && r.type !== "tekst") {
-            const a = parseBedrag(r.a);
-            const p = parseBedrag(r.p);
-            sub += a * p;
-        }
-    });
-    const btw = sub * 0.21;
-    const tot = sub * 1.21;
-    return {
-        sub: sub.toFixed(2),
-        btw: btw.toFixed(2),
-        tot: tot.toFixed(2)
-    };
-}
-
-function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
+function maakPDF(nr, dRaw, k, regels, ref, sap) {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: "pt", format: "a4" });
     const marginLeft = 40;
@@ -692,16 +666,16 @@ function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
     
     y += 40;
     pdf.setFont("Helvetica", "bold");
-    pdf.text((k && k.naam) || "", marginLeft, y);
+    pdf.text(k.naam || "", marginLeft, y);
     pdf.setFont("Helvetica", "normal");
-    pdf.text((k && k.adres) || "", marginLeft, y + 14);
+    pdf.text(k.adres || "", marginLeft, y + 14);
     
     let subOffset = 28;
-    if (k && k.contact) {
+    if (k.contact) {
         pdf.text(`T.a.v.: ${k.contact}`, marginLeft, y + subOffset);
         subOffset += 14;
     }
-    if (k && k.btw) {
+    if (k.btw) {
         pdf.text(`BTW-nr: ${k.btw}`, marginLeft, y + subOffset);
         subOffset += 14;
     }
@@ -732,12 +706,10 @@ function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
     y += 35;
     pdf.setFont("Helvetica", "normal");
 
-    (regels || []).forEach((r) => {
+    regels.forEach((r) => {
         if (r.type === "tekst") {
             if (r.o && r.o.trim() !== "") {
-                // Ca. 3 letters smaller dan de rechterkant van de grijze standaardbalk
-                const maxTekstBreedte = (marginRight - 22) - (marginLeft + 5);
-                const lines = pdf.splitTextToSize(r.o, maxTekstBreedte);
+                const lines = pdf.splitTextToSize(r.o, marginRight - marginLeft - 10);
                 const rowHeight = (lines.length * 12) + 10;
                 if (y + rowHeight > pageHeight - 110) {
                     pdf.addPage();
@@ -752,9 +724,7 @@ function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
                 y += rowHeight + 4;
             }
         } else {
-            const aantalNum = parseBedrag(r.a);
-            const prijsNum = parseBedrag(r.p);
-            const totaal = (aantalNum * prijsNum).toFixed(2);
+            const totaal = (parseFloat(r.a) * parseFloat(r.p)).toFixed(2);
             const lines = pdf.splitTextToSize(r.o || "", 280);
             const rowHeight = (lines.length * 12) + 10;
 
@@ -771,20 +741,12 @@ function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
             
             pdf.text(lines, marginLeft + 5, y);
             pdf.text(String(r.a), 380, y, { align: "right" });
-            pdf.text(`€ ${prijsNum.toFixed(2)}`, 460, y, { align: "right" });
+            pdf.text(`€ ${parseFloat(r.p).toFixed(2)}`, 460, y, { align: "right" });
             pdf.text(`€ ${totaal}`, marginRight - 5, y, { align: "right" });
             
             y += rowHeight + 4;
         }
     });
-
-    const berekend = berekenTotalenUitRegels(regels);
-    const berekendNum = parseBedrag(berekend.tot);
-    const opgeslagenNum = totalen ? parseBedrag(totalen.tot) : 0;
-
-    const subBedrag = (berekendNum === 0 && opgeslagenNum > 0 && totalen.sub) ? totalen.sub : berekend.sub;
-    const btwBedrag = (berekendNum === 0 && opgeslagenNum > 0 && totalen.btw) ? totalen.btw : berekend.btw;
-    const totBedrag = (berekendNum === 0 && opgeslagenNum > 0 && totalen.tot) ? totalen.tot : berekend.tot;
 
     if (y + 90 > pageHeight - 110) {
         pdf.addPage();
@@ -796,15 +758,15 @@ function maakPDF(nr, dRaw, k, regels, ref, sap, totalen = null) {
     pdf.line(350, y, marginRight, y);
     y += 18;
     pdf.text("Subtotaal:", 460, y, { align: "right" });
-    pdf.text(`€ ${subBedrag}`, marginRight - 5, y, { align: "right" });
+    pdf.text(`€ ${$("sub").innerText}`, marginRight - 5, y, { align: "right" });
     y += 15;
     pdf.text("BTW 21%:", 460, y, { align: "right" });
-    pdf.text(`€ ${btwBedrag}`, marginRight - 5, y, { align: "right" });
+    pdf.text(`€ ${$("btw").innerText}`, marginRight - 5, y, { align: "right" });
     y += 20;
     pdf.setFontSize(11);
     pdf.setFont("Helvetica", "bold");
     pdf.text("Totaalbedrag:", 460, y, { align: "right" });
-    pdf.text(`€ ${totBedrag}`, marginRight - 5, y, { align: "right" });
+    pdf.text(`€ ${$("tot").innerText}`, marginRight - 5, y, { align: "right" });
 
     const totalPages = pdf.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
@@ -901,11 +863,7 @@ function exportFactuur() {
     const fData = getHuidigeFactuurData();
     if (!fData) return alert("Selecteer klant");
 
-    maakPDF(fData.nr, fData.datumRaw, fData.klant, fData.regels, fData.referentie, fData.sapOrder, {
-        sub: fData.sub,
-        btw: fData.btw,
-        tot: fData.tot
-    });
+    maakPDF(fData.nr, fData.datumRaw, fData.klant, fData.regels, fData.referentie, fData.sapOrder);
     slaFactuurOpInHistorie(fData);
 
     setTimeout(() => {
@@ -960,9 +918,10 @@ function exportUBL() {
     const idx = $("klantSelect").value;
     if (idx === "") return alert("Selecteer eerst een klant");
     
+    const k = klanten[idx];
     const datum = $("datum").value;
     const ref = $("factuurReferentie").value || "Geen referentie";
-    const tot = parseBedrag($("tot").innerText).toFixed(2);
+    const tot = parseFloat($("tot").innerText).toFixed(2);
 
     let ublXML = `<?xml version="1.0" encoding="UTF-8"?>
 <Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
@@ -1096,11 +1055,7 @@ function herroepFactuur(index) {
 function downloadHistoriePDF(index) {
     const f = facturen[index];
     if (f) {
-        maakPDF(f.nr, f.datumRaw, f.klant, f.regels, f.referentie, f.sapOrder, {
-            sub: f.sub,
-            btw: f.btw,
-            tot: f.tot
-        });
+        maakPDF(f.nr, f.datumRaw, f.klant, f.regels, f.referentie, f.sapOrder);
     }
 }
 
