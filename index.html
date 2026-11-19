@@ -790,7 +790,21 @@ function maakPDF(nr, dRaw, k, regels, ref, sap) {
         pdf.text(`Pagina ${i} van ${totalPages}`, marginRight, footerY + 24, { align: "right" });
     }
 
-    pdf.save(`Factuur-${nr}.pdf`);
+    const fileName = `Factuur-${nr}.pdf`;
+    try {
+        const blob = pdf.output("blob");
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+        pdf.save(fileName);
+    }
 }
 
 function getHuidigeFactuurData() {
