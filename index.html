@@ -336,8 +336,10 @@ function bepaalVolgendNummer() {
     return opgeslagen;
 }
 
-function init() {
-    nummer = bepaalVolgendNummer();
+function init(behoudHuidigNummer = false) {
+    if (!behoudHuidigNummer) {
+        nummer = bepaalVolgendNummer();
+    }
 
     $("klantSelect").innerHTML = `<option value="">Kies klant</option>` +
         klanten.map((k, i) => `<option value="${i}">${k.naam}</option>`).join("");
@@ -473,7 +475,7 @@ function klantToevoegen() {
     $("kBtw").value = "";
     $("kKvk").value = "";
     
-    init();
+    init(true);
 }
 
 function updateKlantenLijst() {
@@ -507,7 +509,7 @@ function saveKlantWijziging(index) {
     klanten[index].btw = $(`editKBtw-${index}`).value;
     klanten[index].kvk = $(`editKKvk-${index}`).value;
     localStorage.setItem("klanten", JSON.stringify(klanten));
-    init();
+    init(true);
 }
 
 function regelToevoegen(type = "normaal", o = "", a = 1, p = 0) {
@@ -984,10 +986,56 @@ function updateHistorieLijst() {
             <td>€ ${f.tot}</td>
             <td>
                 <button type="button" onclick="downloadHistoriePDF(${index})" style="padding:5px 10px; font-size:12px;" class="btn-pdf">📄 PDF</button>
+                <button type="button" onclick="herroepFactuur(${index})" style="padding:5px 10px; font-size:12px;" class="btn-backup">↩️ Herroep</button>
                 <button type="button" onclick="verwijderFactuur(${index})" style="padding:5px 10px; font-size:12px;" class="btn-danger">🗑️</button>
             </td>
         `;
     });
+}
+
+function herroepFactuur(index) {
+    const f = facturen[index];
+    if (!f) return;
+
+    if (!confirm(`Wil je factuur ${f.nr} herroepen en terugzetten naar het factuurformulier? De factuur wordt uit de historie verwijderd.`)) {
+        return;
+    }
+
+    const herroepenNr = parseInt(f.nr);
+    facturen.splice(index, 1);
+    localStorage.setItem("facturen", JSON.stringify(facturen));
+
+    if (!isNaN(herroepenNr)) {
+        nummer = herroepenNr;
+        const opgeslagenNr = parseInt(localStorage.getItem("factuurnr")) || 6374;
+        if (opgeslagenNr === herroepenNr + 1) {
+            localStorage.setItem("factuurnr", herroepenNr);
+        }
+    }
+
+    init(true);
+
+    const klantIdx = f.klant
+        ? klanten.findIndex(k => k.naam === f.klant.naam && (k.adres || "") === (f.klant.adres || ""))
+        : -1;
+    $("klantSelect").value = klantIdx !== -1 ? String(klantIdx) : "";
+    $("datum").value = f.datumRaw || new Date().toISOString().split('T')[0];
+    $("factuurReferentie").value = f.referentie || "";
+    $("sapOrder").value = f.sapOrder || "";
+    if (f.termijn) {
+        $("betaling").value = f.termijn;
+    }
+
+    const regelsTbody = document.querySelector("#regelsTabel tbody");
+    regelsTbody.innerHTML = "";
+    if (Array.isArray(f.regels) && f.regels.length > 0) {
+        f.regels.forEach(r => regelToevoegen(r.type || "normaal", r.o || "", r.a ?? 1, r.p ?? 0));
+    } else {
+        regelToevoegen();
+    }
+
+    bereken();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function downloadHistoriePDF(index) {
